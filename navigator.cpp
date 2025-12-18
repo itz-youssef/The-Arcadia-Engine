@@ -9,9 +9,9 @@
 
 using namespace std;
 
-// ==========================================
-// Part 1: Safe Passage (Path Existence)
-// ==========================================
+
+//------------Safe Passage-------------------
+
 class SafePassage {
 public:
     // Structure to represent a simple edge
@@ -54,9 +54,9 @@ public:
     }
 };
 
-// ==========================================
-// Part 2: The Bribe (Min Cost Path/MST Variant)
-// ==========================================
+
+//----------------The Bribe-----------------------
+
 class TheBribe {
 public:
     struct Road {
@@ -123,9 +123,9 @@ public:
     }
 };
 
-// ==========================================
-// Part 3: The Teleporter Network (All-Pairs Shortest Path)
-// ==========================================
+
+//------------The Teleporter Network------------------
+
 class TeleporterNetwork {
 public:
     struct WeightedRoad {
@@ -186,9 +186,9 @@ private:
     }
 };
 
-// ==========================================
-// Main
-// ==========================================
+
+//------------Main---------------
+
 int main() {
 
     
