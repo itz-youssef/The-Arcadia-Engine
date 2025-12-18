@@ -24,22 +24,65 @@ using namespace std;
 
 class ConcretePlayerTable : public PlayerTable {
 private:
+    struct PlayerData {
+        int id;
+        string name;
+        PlayerData() : id(-1), name("") {}
+        PlayerData(int i, string n) : id(i), name(n) {}
+    };
+    static const int TABLE_SIZE = 101; 
+    vector<PlayerData> table;
+    vector<bool> occupied;
+
+    int hash1(int key) const {
+        return key % TABLE_SIZE;
+    }
+
+    int hash2(int key) const {
+        return 1 + (key % (TABLE_SIZE - 1));
+    }
     // TODO: Define your data structures here
     // Hint: You'll need a hash table with double hashing collision resolution
 
 public:
-    ConcretePlayerTable() {
-        // TODO: Initialize your hash table
-    }
+    ConcretePlayerTable() : table(TABLE_SIZE), occupied(TABLE_SIZE, false) {}
 
     void insert(int playerID, string name) override {
-        // TODO: Implement double hashing insert
-        // Remember to handle collisions using h1(key) + i * h2(key)
+        int h1 = hash1(playerID);
+        int h2 = hash2(playerID);
+
+        for (int i = 0; i < TABLE_SIZE; ++i) {
+            int idx = (h1 + i * h2) % TABLE_SIZE;
+
+            if (!occupied[idx]) {
+                table[idx] = PlayerData(playerID, name);
+                occupied[idx] = true;
+                return; 
+            }
+            
+            if (table[idx].id == playerID) {
+                table[idx].name = name; 
+                return; 
+            }
+        }
+        cout << "Table is full" << endl; 
     }
 
     string search(int playerID) override {
-        // TODO: Implement double hashing search
-        // Return "" if player not found
+        int h1 = hash1(playerID);
+        int h2 = hash2(playerID);
+
+        for (int i = 0; i < TABLE_SIZE; ++i) {
+            int idx = (h1 + i * h2) % TABLE_SIZE;
+
+            if (!occupied[idx]) {
+                return ""; 
+            }
+
+            if (table[idx].id == playerID) {
+                return table[idx].name;
+            }
+        }
         return "";
     }
 };
@@ -48,26 +91,116 @@ public:
 
 class ConcreteLeaderboard : public Leaderboard {
 private:
+    struct Node {
+        int playerID;
+        int score;
+        vector<Node*> forward;
+
+        Node(int id, int s, int level)
+            : playerID(id), score(s), forward(level, nullptr) {
+        }
+    };
+
+    static const int MAX_LEVEL = 16;
+    int level;
+    Node* header;
+
+    int randomLevel() {
+        int lvl = 1;
+        while ((rand() % 2) && lvl < MAX_LEVEL)
+            lvl++;
+        return lvl;
+    }
+
+    bool lessThan(int score1, int id1, int score2, int id2) const {
+        if (score1 != score2) return score1 > score2; 
+        return id1 < id2; 
+    }
     // TODO: Define your skip list node structure and necessary variables
     // Hint: You'll need nodes with multiple forward pointers
-
 public:
-    ConcreteLeaderboard() {
-        // TODO: Initialize your skip list
+    ConcreteLeaderboard() : level(1) {
+        header = new Node(-1, numeric_limits<int>::max(), MAX_LEVEL);
+        srand(time(NULL));
     }
 
     void addScore(int playerID, int score) override {
-        // TODO: Implement skip list insertion
-        // Remember to maintain descending order by score
+        vector<Node*> update(MAX_LEVEL, nullptr);
+        Node* current = header;
+
+        for (int i = level - 1; i >= 0; --i) {
+            while (current->forward[i] &&
+                lessThan(current->forward[i]->score,
+                    current->forward[i]->playerID,
+                    score, playerID)) {
+                current = current->forward[i];
+            }
+            update[i] = current;
+        }
+
+        int newLevel = randomLevel();
+        if (newLevel > level) {
+            for (int i = level; i < newLevel; ++i)
+                update[i] = header;
+            level = newLevel;
+        }
+
+        Node* newNode = new Node(playerID, score, newLevel);
+        for (int i = 0; i < newLevel; ++i) {
+            newNode->forward[i] = update[i]->forward[i];
+            update[i]->forward[i] = newNode;
+        }
     }
 
     void removePlayer(int playerID) override {
-        // TODO: Implement skip list deletion
+        Node* current = header->forward[0];
+        int score = -1;
+        
+        while (current) {
+            if (current->playerID == playerID) {
+                score = current->score;
+                break;
+            }
+            current = current->forward[0];
+        }
+        
+        if (score == -1) return; 
+
+        vector<Node*> update(MAX_LEVEL, nullptr);
+        current = header;
+
+        for (int i = level - 1; i >= 0; --i) {
+            while (current->forward[i] &&
+                lessThan(current->forward[i]->score,
+                    current->forward[i]->playerID,
+                    score, playerID)) {
+                current = current->forward[i];
+            }
+            update[i] = current;
+        }
+
+        Node* target = current->forward[0];
+        if (!target || target->playerID != playerID) return;
+
+        for (int i = 0; i < level; ++i) {
+            if (update[i]->forward[i] != target) break;
+            update[i]->forward[i] = target->forward[i];
+        }
+        delete target;
+
+        while (level > 1 && header->forward[level - 1] == nullptr)
+            --level;
     }
 
     vector<int> getTopN(int n) override {
-        // TODO: Return top N player IDs in descending score order
-        return {};
+        vector<int> result;
+        Node* current = header->forward[0];
+
+        while (current && n--) {
+            result.push_back(current->playerID);
+            current = current->forward[0];
+        }
+        return result;
     }
 };
 
@@ -355,8 +488,8 @@ public:
         Root = nullptr;
     }
 
-    void insertItem(int itemID, int price) override {
-        Node* newNode = new Node(itemID,price, RED, nullptr, nullptr, nullptr);
+   void insertItem(int itemID, int price) override {
+        Node* newNode = new Node(itemID, price, RED, nullptr, nullptr, nullptr);
         if (Root == nullptr) {
             newNode->color = BLACK;
             Root = newNode;
@@ -368,40 +501,40 @@ public:
 
         while (temp != nullptr) {
             parent = temp;
-            if (itemID < temp->id)
+            if (price < temp->price || (price == temp->price && itemID < temp->id))
                 temp = temp->left;
             else
                 temp = temp->right;
         }
 
         newNode->parent = parent;
-        if (itemID < parent->id)
+        if (price < parent->price || (price == parent->price && itemID < parent->id))
             parent->left = newNode;
         else
             parent->right = newNode;
 
         FixViolation(newNode);
-        // TODO: Implement Red-Black Tree insertion
-        // Remember to maintain RB-Tree properties with rotations and recoloring
     }
 
     void deleteItem(int itemID) override {
-         Node* temp = Root;
-        while (temp != nullptr) {
-            if (itemID == temp->id) {
-                deleteNodeHelper(temp);
-                return;
-            }
-            else if (itemID < temp->id) {
-                temp = temp->left;
-            }
-            else {
-                temp = temp->right;
-            }
+        Node* target = findByID(Root, itemID);
+
+        if (target != nullptr) {
+            deleteNodeHelper(target);
+        } 
+        else {
+            cout << "Item ID " << itemID << " not found!" << endl;
         }
-        cout << "Item ID " << itemID << " not found!" << endl;
-        // TODO: Implement Red-Black Tree deletion
-        // This is complex - handle all cases carefully
+    }
+
+    Node* findByID(Node* node, int itemID) {
+        if (node == nullptr) return nullptr;
+        if (node->id == itemID) return node;
+
+        Node* leftSearch = findByID(node->left, itemID);
+        if (leftSearch != nullptr) return leftSearch;
+
+        return findByID(node->right, itemID);
     }
 };
 
@@ -447,6 +580,14 @@ int InventorySystem::maximizeCarryValue(int capacity, vector<pair<int, int>>& it
 }
 
 long long InventorySystem::countStringPossibilities(string s) {
+    for (char c : s) {
+        if (c == 'w' || c == 'm') {
+            return 0;
+        }
+    }
+
+    if (s.empty()) return 1;
+
     const long long MOD = 1000000007;
     int n = s.size();
 
@@ -625,11 +766,23 @@ string WorldNavigator::sumMinDistancesBinary(int n, vector<vector<int>>& roads) 
 // =========================================================
 
 int ServerKernel::minIntervals(vector<char>& tasks, int n) {
-    // TODO: Implement task scheduler with cooling time
-    // Same task must wait 'n' intervals before running again
-    // Return minimum total intervals needed (including idle time)
-    // Hint: Use greedy approach with frequency counting
-    return 0;
+    vector<int> frequencies(26, 0);
+    for (char task : tasks) {
+        frequencies[task - 'A']++;
+    }
+
+    int maxFreq = 0;
+    for (int f : frequencies) {
+        if (f > maxFreq) maxFreq = f;
+    }
+
+    int countMaxFreq = 0;
+    for (int f : frequencies) {
+        if (f == maxFreq) countMaxFreq++;
+    }
+
+    long long result = (long long)(maxFreq - 1) * (n + 1) + countMaxFreq;
+    return max((int)tasks.size(), (int)result);
 }
 
 // =========================================================
